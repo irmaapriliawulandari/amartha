@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(lsof -ti:8080)",
+      "Bash(xargs -r kill -9)",
+      "Bash(timeout 2 make run)",
+      "Bash(make build *)",
+      "Bash(make clean *)",
+      "Bash(go get *)",
+      "Bash(kill -9 4041 3904)",
+      "Bash(gofmt -l .)",
+      "Bash(gofmt -w mq/mq.go)",
+      "Bash(go vet *)",
+      "Bash(go run *)",
+      "Bash(echo \"exit code: $?\")"
+    ]
+  }
+}

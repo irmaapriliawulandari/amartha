@@ -276,3 +276,107 @@ func TestLoanRepo_InsertStatement(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestLoanRepo_MakePayment(t *testing.T) {
+	loanID := int64(1)
+	now := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
+
+	selectPattern := regexp.QuoteMeta("for update")
+	updateStatementPattern := regexp.QuoteMeta("set paid_amount")
+	updateOverduePattern := regexp.QuoteMeta("where loan_id = $3 and status = $4")
+	clearDelinquencyPattern := regexp.QuoteMeta("update delinquency_hist")
+
+	statementColumns := []string{"statement_id", "installment_amount", "carry_over_amount", "paid_amount", "statement_date", "deadline", "status"}
+
+	t.Run("success pays latest statement, marks overdue as paid late, clears delinquency", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(selectPattern).
+			WithArgs(loanID, now).
+			WillReturnRows(sqlmock.NewRows(statementColumns).
+				AddRow(int64(5), "110000", "10000", "0", time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), entity.StatementStatusUnpaid))
+		mock.ExpectExec(updateStatementPattern).
+			WithArgs(decimal.NewFromInt(120000), entity.StatementStatusPaid, now, int64(5)).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(updateOverduePattern).
+			WithArgs(entity.StatementStatusPaidLate, now, loanID, entity.StatementStatusOverdue).
+			WillReturnResult(sqlmock.NewResult(0, 2))
+		mock.ExpectExec(clearDelinquencyPattern).
+			WithArgs(now, loanID).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		r := &loanRepo{db: db}
+		got, err := r.MakePayment(loanID, now)
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(5), got.StatementID)
+		assert.True(t, decimal.NewFromInt(120000).Equal(got.PaidAmount))
+		assert.Equal(t, entity.StatementStatusPaid, got.Status)
+		assert.True(t, got.PaidAt.Valid)
+		assert.Equal(t, now, got.PaidAt.Time)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("no statement before the reference date rolls back", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(selectPattern).
+			WithArgs(loanID, now).
+			WillReturnRows(sqlmock.NewRows(statementColumns))
+		mock.ExpectRollback()
+
+		r := &loanRepo{db: db}
+		_, err = r.MakePayment(loanID, now)
+
+		assert.ErrorIs(t, err, entity.ErrStatementNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("already paid statement rolls back", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(selectPattern).
+			WithArgs(loanID, now).
+			WillReturnRows(sqlmock.NewRows(statementColumns).
+				AddRow(int64(5), "110000", "10000", "120000", time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), entity.StatementStatusPaid))
+		mock.ExpectRollback()
+
+		r := &loanRepo{db: db}
+		_, err = r.MakePayment(loanID, now)
+
+		assert.ErrorIs(t, err, entity.ErrStatementAlreadyPaid)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("update failure rolls back the whole transaction", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(selectPattern).
+			WithArgs(loanID, now).
+			WillReturnRows(sqlmock.NewRows(statementColumns).
+				AddRow(int64(5), "110000", "10000", "0", time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), entity.StatementStatusOverdue))
+		mock.ExpectExec(updateStatementPattern).
+			WithArgs(decimal.NewFromInt(120000), entity.StatementStatusPaid, now, int64(5)).
+			WillReturnError(errors.New("connection refused"))
+		mock.ExpectRollback()
+
+		r := &loanRepo{db: db}
+		_, err = r.MakePayment(loanID, now)
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}

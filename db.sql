@@ -57,3 +57,7 @@ CREATE TABLE delinquency_hist					 (
 
 CREATE INDEX idx_delinquency_open ON delinquency_hist (borrower_id)
 WHERE cleared_at IS NULL;
+
+CREATE INDEX idx_delinquency_borrower ON delinquency_hist (borrower_id);
+
+CREATE INDEX idx_delinquency_loan_open ON delinquency_hist (loan_id) WHERE cleared_at IS NULL;

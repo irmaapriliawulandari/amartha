@@ -40,6 +40,21 @@ func (m *mockUsecases) GetLatestStatement(loanID int64, now time.Time) (entity.L
 	return args.Get(0).(entity.LatestStatement), args.Error(1)
 }
 
+func (m *mockUsecases) IsDelinquent(borrowerID int64) (entity.IsDelinquentResponse, error) {
+	args := m.Called(borrowerID)
+	return args.Get(0).(entity.IsDelinquentResponse), args.Error(1)
+}
+
+func (m *mockUsecases) IsEverDelinquent(borrowerID int64) (entity.IsEverDelinquentResponse, error) {
+	args := m.Called(borrowerID)
+	return args.Get(0).(entity.IsEverDelinquentResponse), args.Error(1)
+}
+
+func (m *mockUsecases) MakePayment(loanID int64, now time.Time) (entity.MakePaymentResponse, error) {
+	args := m.Called(loanID, now)
+	return args.Get(0).(entity.MakePaymentResponse), args.Error(1)
+}
+
 type mockPublisher struct {
 	mock.Mock
 }
@@ -187,7 +202,7 @@ func TestBillingEngine_GetLatestStatement(t *testing.T) {
 		want := entity.LatestStatement{
 			LoanID: 1, StatementDate: "2026-08-18", CarryOverAmount: decimal.NewFromInt(10000), InstallmentAmount: decimal.NewFromInt(110000),
 			TotalToPay: decimal.NewFromInt(120000), Status: "Paid", Deadline: "2026-08-24",
-			OutstandingAmount: decimal.NewFromInt(4500000),
+			OutstandingAmount: decimal.NewFromInt(4500000), IsDelinquent: true,
 		}
 		uc.On("GetLatestStatement", int64(1), mock.Anything).Return(want, nil)
 

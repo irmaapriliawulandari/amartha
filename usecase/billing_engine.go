@@ -27,7 +27,7 @@ func (uc *billingEngineUsecase) GetStatements(loanID int64, until time.Time, lim
 }
 
 func (uc *billingEngineUsecase) GetOutstandingAmount(loanID int64) (entity.OutstandingAmount, error) {
-	outstanding, err := uc.repo.GetOutstandingAmount(loanID)
+	outstanding, _, err := uc.repo.GetOutstandingAmount(loanID)
 	if err != nil {
 		return entity.OutstandingAmount{}, fmt.Errorf("get outstanding amount: %w", err)
 	}
@@ -41,9 +41,14 @@ func (uc *billingEngineUsecase) GetLatestStatement(loanID int64, now time.Time) 
 		return entity.LatestStatement{}, fmt.Errorf("get latest statement: %w", err)
 	}
 
-	outstanding, err := uc.repo.GetOutstandingAmount(loanID)
+	outstanding, borrowerID, err := uc.repo.GetOutstandingAmount(loanID)
 	if err != nil {
 		return entity.LatestStatement{}, fmt.Errorf("get outstanding amount: %w", err)
+	}
+
+	isDelinquent, err := uc.repo.IsLoanDelinquent(borrowerID, loanID)
+	if err != nil {
+		return entity.LatestStatement{}, fmt.Errorf("check is delinquent: %w", err)
 	}
 
 	return entity.LatestStatement{
@@ -55,5 +60,6 @@ func (uc *billingEngineUsecase) GetLatestStatement(loanID int64, now time.Time) 
 		Status:            entity.StatementStatus[statement.Status],
 		Deadline:          statement.Deadline.Format("2006-01-02"),
 		OutstandingAmount: outstanding,
+		IsDelinquent:      isDelinquent,
 	}, nil
 }

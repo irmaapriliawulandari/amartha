@@ -25,6 +25,7 @@ var (
 )
 
 var ErrStatementNotFound = errors.New("statement not found")
+var ErrStatementAlreadyPaid = errors.New("statement already paid")
 
 type Statement struct {
 	LoanID        int64           `json:"loan_id"`
@@ -44,6 +45,16 @@ type LatestStatement struct {
 	TotalToPay        decimal.Decimal `json:"total_to_pay"`
 	Status            string          `json:"status"`
 	Deadline          string          `json:"deadline"`
+	OutstandingAmount decimal.Decimal `json:"outstanding_amount"`
+	IsDelinquent      bool            `json:"is_delinquent"`
+}
+
+// MakePaymentResponse confirms a payment applied to a loan's latest statement.
+type MakePaymentResponse struct {
+	LoanID            int64           `json:"loan_id"`
+	StatementID       int64           `json:"statement_id"`
+	PaidAmount        decimal.Decimal `json:"paid_amount"`
+	PaidAt            string          `json:"paid_at"`
 	OutstandingAmount decimal.Decimal `json:"outstanding_amount"`
 }
 

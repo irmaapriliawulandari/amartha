@@ -193,22 +193,23 @@ func TestLoanRepo_GetOutstandingAmount(t *testing.T) {
 	loanID := int64(1)
 	queryPattern := regexp.QuoteMeta("from loan l")
 
-	t.Run("success returns outstanding amount", func(t *testing.T) {
+	t.Run("success returns outstanding amount and borrower id", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
 		require.NoError(t, err)
 		defer db.Close()
 
-		rows := sqlmock.NewRows([]string{"outstanding"}).AddRow("4500000")
+		rows := sqlmock.NewRows([]string{"borrower_id", "outstanding"}).AddRow(int64(2), "4500000")
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID).
+			WithArgs(loanID, entity.StatementStatusPaid, entity.StatementStatusPaidLate).
 			WillReturnRows(rows)
 
 		r := &loanRepo{db: db}
-		got, err := r.GetOutstandingAmount(loanID)
+		got, borrowerID, err := r.GetOutstandingAmount(loanID)
 
 		require.NoError(t, err)
 		assert.True(t, decimal.NewFromInt(4500000).Equal(got))
+		assert.Equal(t, int64(2), borrowerID)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -218,11 +219,11 @@ func TestLoanRepo_GetOutstandingAmount(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID).
-			WillReturnRows(sqlmock.NewRows([]string{"outstanding"}))
+			WithArgs(loanID, entity.StatementStatusPaid, entity.StatementStatusPaidLate).
+			WillReturnRows(sqlmock.NewRows([]string{"borrower_id", "outstanding"}))
 
 		r := &loanRepo{db: db}
-		_, err = r.GetOutstandingAmount(loanID)
+		_, _, err = r.GetOutstandingAmount(loanID)
 
 		assert.ErrorIs(t, err, entity.ErrLoanNotFound)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -234,11 +235,11 @@ func TestLoanRepo_GetOutstandingAmount(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID).
+			WithArgs(loanID, entity.StatementStatusPaid, entity.StatementStatusPaidLate).
 			WillReturnError(errors.New("connection refused"))
 
 		r := &loanRepo{db: db}
-		_, err = r.GetOutstandingAmount(loanID)
+		_, _, err = r.GetOutstandingAmount(loanID)
 
 		assert.ErrorContains(t, err, "connection refused")
 		assert.NoError(t, mock.ExpectationsWereMet())

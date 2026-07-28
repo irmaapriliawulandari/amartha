@@ -31,6 +31,9 @@ func RegisterRoutes(mux *http.ServeMux, h *httpHandler) {
 	mux.HandleFunc("/billing-engine/get-statements", auth.AuthMiddleware(h.GetStatements))
 	mux.HandleFunc("/billing-engine/get-outstanding", auth.AuthMiddleware(h.GetOutstandingAmount))
 	mux.HandleFunc("/billing-engine/get-latest-statement", auth.AuthMiddleware(h.GetLatestStatement))
+	mux.HandleFunc("/billing-engine/is-delinquent", auth.AuthMiddleware(h.IsDelinquent))
+	mux.HandleFunc("/billing-engine/is-ever-delinquent", auth.AuthMiddleware(h.IsEverDelinquent))
+	mux.HandleFunc("/billing-engine/make-payment", auth.AuthMiddleware(h.MakePayment))
 }
 
 // Ping check service healthy

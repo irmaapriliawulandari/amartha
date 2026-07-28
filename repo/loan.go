@@ -75,25 +75,30 @@ func (r *loanRepo) InsertLoanWithStatements(loan entity.LoanDB, statements []ent
 	return nil
 }
 
-func (r *loanRepo) GetOutstandingAmount(loanID int64) (decimal.Decimal, error) {
+// GetOutstandingAmount returns the loan's borrower_id alongside its
+// outstanding balance (total_amount minus everything paid so far), since
+// callers needing the delinquency check already need to fetch this row.
+// Only statements in a paid state (Paid or Paid Late) count toward the
+// amount paid — Unpaid/Overdue rows always have paid_amount = 0 in practice,
+// but the filter makes that assumption explicit rather than implicit.
+func (r *loanRepo) GetOutstandingAmount(loanID int64) (outstanding decimal.Decimal, borrowerID int64, err error) {
 	const query = `
-		select l.total_amount - coalesce(sum(s.paid_amount), 0)
+		select l.borrower_id, l.total_amount - coalesce(sum(s.paid_amount) filter (where s.status in ($2, $3)), 0)
 		from loan l
 		left join statement s on s.loan_id = l.loan_id
 		where l.loan_id = $1
 		group by l.loan_id, l.total_amount
 	`
 
-	var outstanding decimal.Decimal
-	err := r.db.QueryRow(query, loanID).Scan(&outstanding)
+	err = r.db.QueryRow(query, loanID, entity.StatementStatusPaid, entity.StatementStatusPaidLate).Scan(&borrowerID, &outstanding)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return decimal.Decimal{}, entity.ErrLoanNotFound
+			return decimal.Decimal{}, 0, entity.ErrLoanNotFound
 		}
-		return decimal.Decimal{}, fmt.Errorf("query outstanding amount: %w", err)
+		return decimal.Decimal{}, 0, fmt.Errorf("query outstanding amount: %w", err)
 	}
 
-	return outstanding, nil
+	return outstanding, borrowerID, nil
 }
 
 func rollback(tx *sql.Tx, cause error) error {

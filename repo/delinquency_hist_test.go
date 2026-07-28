@@ -77,3 +77,168 @@ func TestLoanRepo_InsertDelinquencyHist(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestLoanRepo_IsDelinquent(t *testing.T) {
+	borrowerID := int64(1)
+	queryPattern := regexp.QuoteMeta("from delinquency_hist")
+
+	t.Run("true when an uncleared record exists", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+		r := &loanRepo{db: db}
+		got, err := r.IsDelinquent(borrowerID)
+
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("false when no uncleared record exists", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+		r := &loanRepo{db: db}
+		got, err := r.IsDelinquent(borrowerID)
+
+		require.NoError(t, err)
+		assert.False(t, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error is returned", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID).
+			WillReturnError(errors.New("connection refused"))
+
+		r := &loanRepo{db: db}
+		_, err = r.IsDelinquent(borrowerID)
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestLoanRepo_IsEverDelinquent(t *testing.T) {
+	borrowerID := int64(1)
+	queryPattern := regexp.QuoteMeta("from delinquency_hist")
+
+	t.Run("true when any record exists, cleared or not", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+		r := &loanRepo{db: db}
+		got, err := r.IsEverDelinquent(borrowerID)
+
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("false when no record exists", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+		r := &loanRepo{db: db}
+		got, err := r.IsEverDelinquent(borrowerID)
+
+		require.NoError(t, err)
+		assert.False(t, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error is returned", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID).
+			WillReturnError(errors.New("connection refused"))
+
+		r := &loanRepo{db: db}
+		_, err = r.IsEverDelinquent(borrowerID)
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestLoanRepo_IsLoanDelinquent(t *testing.T) {
+	borrowerID, loanID := int64(1), int64(2)
+	queryPattern := regexp.QuoteMeta("from delinquency_hist")
+
+	t.Run("true when an uncleared record exists for that loan", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID, loanID).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+		r := &loanRepo{db: db}
+		got, err := r.IsLoanDelinquent(borrowerID, loanID)
+
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("false when no uncleared record exists for that loan", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID, loanID).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+		r := &loanRepo{db: db}
+		got, err := r.IsLoanDelinquent(borrowerID, loanID)
+
+		require.NoError(t, err)
+		assert.False(t, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error is returned", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(borrowerID, loanID).
+			WillReturnError(errors.New("connection refused"))
+
+		r := &loanRepo{db: db}
+		_, err = r.IsLoanDelinquent(borrowerID, loanID)
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}

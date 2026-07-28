@@ -97,3 +97,77 @@ func insertStatement(q queryRower, statement entity.StatementDB) (int64, error) 
 func (r *loanRepo) InsertStatement(statement entity.StatementDB) (int64, error) {
 	return insertStatement(r.db, statement)
 }
+
+// MakePayment pays off a loan's latest statement (installment + carry over),
+// marks any of its still-overdue prior statements as paid late, and clears
+// the loan's open delinquency records — all in one transaction, with the
+// latest statement row locked for the duration to prevent a concurrent
+// double payment.
+func (r *loanRepo) MakePayment(loanID int64, now time.Time) (entity.StatementDB, error) {
+	const selectLatestForUpdate = `
+		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, deadline, status
+		from statement
+		where loan_id = $1 and statement_date < $2
+		order by statement_date desc
+		limit 1
+		for update
+	`
+	const updateStatement = `
+		update statement
+		set paid_amount = $1, status = $2, paid_at = $3, updated_at = $3
+		where statement_id = $4
+	`
+	const updateOverdueStatements = `
+		update statement
+		set status = $1, paid_at = $2, updated_at = $2
+		where loan_id = $3 and status = $4
+	`
+	const clearDelinquency = `
+		update delinquency_hist
+		set cleared_at = $1, updated_at = $1
+		where loan_id = $2 and cleared_at is null
+	`
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return entity.StatementDB{}, fmt.Errorf("begin transaction: %w", err)
+	}
+
+	s := entity.StatementDB{LoanID: loanID}
+	err = tx.QueryRow(selectLatestForUpdate, loanID, now).Scan(
+		&s.StatementID, &s.InstallmentAmount, &s.CarryOverAmount, &s.PaidAmount, &s.StatementDate, &s.Deadline, &s.Status,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return entity.StatementDB{}, rollback(tx, entity.ErrStatementNotFound)
+		}
+		return entity.StatementDB{}, rollback(tx, fmt.Errorf("query latest statement: %w", err))
+	}
+
+	if s.Status == entity.StatementStatusPaid || s.Status == entity.StatementStatusPaidLate {
+		return entity.StatementDB{}, rollback(tx, entity.ErrStatementAlreadyPaid)
+	}
+
+	paidAmount := s.InstallmentAmount.Add(s.CarryOverAmount)
+	if _, err := tx.Exec(updateStatement, paidAmount, entity.StatementStatusPaid, now, s.StatementID); err != nil {
+		return entity.StatementDB{}, rollback(tx, fmt.Errorf("update statement: %w", err))
+	}
+
+	if _, err := tx.Exec(updateOverdueStatements, entity.StatementStatusPaidLate, now, loanID, entity.StatementStatusOverdue); err != nil {
+		return entity.StatementDB{}, rollback(tx, fmt.Errorf("update overdue statements: %w", err))
+	}
+
+	if _, err := tx.Exec(clearDelinquency, now, loanID); err != nil {
+		return entity.StatementDB{}, rollback(tx, fmt.Errorf("clear delinquency_hist: %w", err))
+	}
+
+	if err := tx.Commit(); err != nil {
+		return entity.StatementDB{}, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	s.PaidAmount = paidAmount
+	s.Status = entity.StatementStatusPaid
+	s.PaidAt = sql.NullTime{Time: now, Valid: true}
+
+	return s, nil
+}

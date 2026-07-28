@@ -46,13 +46,33 @@ func (m *mockRepo) InsertLoanWithStatements(loan entity.LoanDB, statements []ent
 	return args.Error(0)
 }
 
-func (m *mockRepo) GetOutstandingAmount(loanID int64) (decimal.Decimal, error) {
+func (m *mockRepo) GetOutstandingAmount(loanID int64) (decimal.Decimal, int64, error) {
 	args := m.Called(loanID)
-	return args.Get(0).(decimal.Decimal), args.Error(1)
+	return args.Get(0).(decimal.Decimal), args.Get(1).(int64), args.Error(2)
 }
 
 func (m *mockRepo) GetLatestStatement(loanID int64, before time.Time) (entity.StatementDB, error) {
 	args := m.Called(loanID, before)
+	return args.Get(0).(entity.StatementDB), args.Error(1)
+}
+
+func (m *mockRepo) IsDelinquent(borrowerID int64) (bool, error) {
+	args := m.Called(borrowerID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockRepo) IsEverDelinquent(borrowerID int64) (bool, error) {
+	args := m.Called(borrowerID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockRepo) IsLoanDelinquent(borrowerID, loanID int64) (bool, error) {
+	args := m.Called(borrowerID, loanID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockRepo) MakePayment(loanID int64, now time.Time) (entity.StatementDB, error) {
+	args := m.Called(loanID, now)
 	return args.Get(0).(entity.StatementDB), args.Error(1)
 }
 
@@ -123,7 +143,7 @@ func TestBillingEngineUsecase_GetOutstandingAmount(t *testing.T) {
 
 	t.Run("success returns outstanding amount", func(t *testing.T) {
 		repo := new(mockRepo)
-		repo.On("GetOutstandingAmount", loanID).Return(decimal.NewFromInt(4500000), nil)
+		repo.On("GetOutstandingAmount", loanID).Return(decimal.NewFromInt(4500000), int64(2), nil)
 
 		uc := NewBillingEngineUsecase(repo)
 		got, err := uc.GetOutstandingAmount(loanID)
@@ -134,7 +154,7 @@ func TestBillingEngineUsecase_GetOutstandingAmount(t *testing.T) {
 
 	t.Run("loan not found is passed through", func(t *testing.T) {
 		repo := new(mockRepo)
-		repo.On("GetOutstandingAmount", loanID).Return(decimal.Decimal{}, entity.ErrLoanNotFound)
+		repo.On("GetOutstandingAmount", loanID).Return(decimal.Decimal{}, int64(0), entity.ErrLoanNotFound)
 
 		uc := NewBillingEngineUsecase(repo)
 		_, err := uc.GetOutstandingAmount(loanID)
@@ -145,7 +165,7 @@ func TestBillingEngineUsecase_GetOutstandingAmount(t *testing.T) {
 	t.Run("repo error is wrapped", func(t *testing.T) {
 		repo := new(mockRepo)
 		repoErr := errors.New("connection lost")
-		repo.On("GetOutstandingAmount", loanID).Return(decimal.Decimal{}, repoErr)
+		repo.On("GetOutstandingAmount", loanID).Return(decimal.Decimal{}, int64(0), repoErr)
 
 		uc := NewBillingEngineUsecase(repo)
 		_, err := uc.GetOutstandingAmount(loanID)
@@ -158,7 +178,7 @@ func TestBillingEngineUsecase_GetLatestStatement(t *testing.T) {
 	loanID := int64(1)
 	now := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
 
-	t.Run("success combines latest statement and outstanding amount, paid or not", func(t *testing.T) {
+	t.Run("success combines latest statement, outstanding amount, and delinquency status", func(t *testing.T) {
 		repo := new(mockRepo)
 		repo.On("GetLatestStatement", loanID, now).Return(entity.StatementDB{
 			LoanID:            loanID,
@@ -168,7 +188,8 @@ func TestBillingEngineUsecase_GetLatestStatement(t *testing.T) {
 			Deadline:          time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC),
 			Status:            entity.StatementStatusPaid,
 		}, nil)
-		repo.On("GetOutstandingAmount", loanID).Return(decimal.NewFromInt(4500000), nil)
+		repo.On("GetOutstandingAmount", loanID).Return(decimal.NewFromInt(4500000), int64(2), nil)
+		repo.On("IsLoanDelinquent", int64(2), loanID).Return(true, nil)
 
 		uc := NewBillingEngineUsecase(repo)
 		got, err := uc.GetLatestStatement(loanID, now)
@@ -183,6 +204,7 @@ func TestBillingEngineUsecase_GetLatestStatement(t *testing.T) {
 			Status:            "Paid",
 			Deadline:          "2026-08-24",
 			OutstandingAmount: decimal.NewFromInt(4500000),
+			IsDelinquent:      true,
 		}, got)
 	})
 
@@ -201,7 +223,21 @@ func TestBillingEngineUsecase_GetLatestStatement(t *testing.T) {
 		repo := new(mockRepo)
 		repo.On("GetLatestStatement", loanID, now).Return(entity.StatementDB{LoanID: loanID}, nil)
 		repoErr := errors.New("connection lost")
-		repo.On("GetOutstandingAmount", loanID).Return(decimal.Decimal{}, repoErr)
+		repo.On("GetOutstandingAmount", loanID).Return(decimal.Decimal{}, int64(0), repoErr)
+
+		uc := NewBillingEngineUsecase(repo)
+		_, err := uc.GetLatestStatement(loanID, now)
+
+		assert.ErrorIs(t, err, repoErr)
+		repo.AssertNotCalled(t, "IsLoanDelinquent", mock.Anything, mock.Anything)
+	})
+
+	t.Run("is loan delinquent repo error is wrapped", func(t *testing.T) {
+		repo := new(mockRepo)
+		repo.On("GetLatestStatement", loanID, now).Return(entity.StatementDB{LoanID: loanID}, nil)
+		repo.On("GetOutstandingAmount", loanID).Return(decimal.NewFromInt(4500000), int64(2), nil)
+		repoErr := errors.New("connection lost")
+		repo.On("IsLoanDelinquent", int64(2), loanID).Return(false, repoErr)
 
 		uc := NewBillingEngineUsecase(repo)
 		_, err := uc.GetLatestStatement(loanID, now)

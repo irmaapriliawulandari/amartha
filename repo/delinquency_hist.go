@@ -34,3 +34,51 @@ func (r *loanRepo) InsertDelinquencyHist(dh entity.DelinquencyHistDB) (int64, er
 
 	return dhID, nil
 }
+
+func (r *loanRepo) IsDelinquent(borrowerID int64) (bool, error) {
+	const query = `
+		select exists(
+			select 1 from delinquency_hist
+			where borrower_id = $1 and cleared_at is null
+		)
+	`
+
+	var exists bool
+	if err := r.db.QueryRow(query, borrowerID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("query is delinquent: %w", err)
+	}
+
+	return exists, nil
+}
+
+func (r *loanRepo) IsLoanDelinquent(borrowerID, loanID int64) (bool, error) {
+	const query = `
+		select exists(
+			select 1 from delinquency_hist
+			where borrower_id = $1 and loan_id = $2 and cleared_at is null
+		)
+	`
+
+	var exists bool
+	if err := r.db.QueryRow(query, borrowerID, loanID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("query is loan delinquent: %w", err)
+	}
+
+	return exists, nil
+}
+
+func (r *loanRepo) IsEverDelinquent(borrowerID int64) (bool, error) {
+	const query = `
+		select exists(
+			select 1 from delinquency_hist
+			where borrower_id = $1
+		)
+	`
+
+	var exists bool
+	if err := r.db.QueryRow(query, borrowerID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("query is ever delinquent: %w", err)
+	}
+
+	return exists, nil
+}

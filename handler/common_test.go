@@ -89,4 +89,61 @@ func TestRegisterRoutes(t *testing.T) {
 		// with 400 before ever touching the nil usecase.
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
+
+	t.Run("is-delinquent without api key is unauthorized", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/billing-engine/is-delinquent", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+
+	t.Run("is-delinquent with valid api key reaches the handler", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/billing-engine/is-delinquent", nil)
+		req.Header.Set("X-API-Key", "fortestingonly")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		// h.uc is nil here, so decoding an empty/invalid body must short-circuit
+		// with 400 before ever touching the nil usecase.
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("is-ever-delinquent without api key is unauthorized", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/billing-engine/is-ever-delinquent", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+
+	t.Run("is-ever-delinquent with valid api key reaches the handler", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/billing-engine/is-ever-delinquent", nil)
+		req.Header.Set("X-API-Key", "fortestingonly")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		// h.uc is nil here, so decoding an empty/invalid body must short-circuit
+		// with 400 before ever touching the nil usecase.
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("make-payment without api key is unauthorized", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/billing-engine/make-payment", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+
+	t.Run("make-payment with valid api key reaches the handler", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/billing-engine/make-payment", nil)
+		req.Header.Set("X-API-Key", "fortestingonly")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		// h.uc is nil here, so decoding an empty/invalid body must short-circuit
+		// with 400 before ever touching the nil usecase.
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
 }

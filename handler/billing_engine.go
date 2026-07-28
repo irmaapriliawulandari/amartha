@@ -18,6 +18,9 @@ type usecases interface {
 	GetStatements(loanID int64, until time.Time, limit, offset int) ([]entity.Statement, error)
 	GetOutstandingAmount(loanID int64) (entity.OutstandingAmount, error)
 	GetLatestStatement(loanID int64, now time.Time) (entity.LatestStatement, error)
+	IsDelinquent(borrowerID int64) (entity.IsDelinquentResponse, error)
+	IsEverDelinquent(borrowerID int64) (entity.IsEverDelinquentResponse, error)
+	MakePayment(loanID int64, now time.Time) (entity.MakePaymentResponse, error)
 }
 
 type getStatementsRequest struct {

@@ -15,3 +15,17 @@ type DelinquencyHistDB struct {
 	ClearedAt   sql.NullTime `json:"cleared_at"`
 	UpdatedAt   sql.NullTime `json:"updated_at"`
 }
+
+// IsDelinquentResponse reports whether a borrower currently has an
+// uncleared delinquency record.
+type IsDelinquentResponse struct {
+	BorrowerID   int64 `json:"borrower_id"`
+	IsDelinquent bool  `json:"is_delinquent"`
+}
+
+// IsEverDelinquentResponse reports whether a borrower has ever had a
+// delinquency record, cleared or not.
+type IsEverDelinquentResponse struct {
+	BorrowerID       int64 `json:"borrower_id"`
+	IsEverDelinquent bool  `json:"is_ever_delinquent"`
+}

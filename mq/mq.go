@@ -1,59 +1,70 @@
 package main
 
 import (
+	"amartha-test/handler/mq"
+	"amartha-test/helper"
+	"amartha-test/repo"
+	"amartha-test/usecase"
 	"log"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
+	"time"
 
 	"github.com/nsqio/go-nsq"
 )
 
 const (
-	defaultTopic       = "billing-engine"
-	defaultChannel     = "billing-engine-consumer"
-	defaultNSQDTCPAddr = "127.0.0.1:4150"
+	defaultNSQDTCPAddr = "127.0.0.1:9150"
 )
 
-// billingHandler processes each message received from the topic/channel.
-// Replace with real billing engine logic.
-type billingHandler struct{}
-
-func (h *billingHandler) HandleMessage(m *nsq.Message) error {
-	log.Printf("received message: %s", string(m.Body))
-	return nil
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
 func main() {
-	topic := envOrDefault("MQ_TOPIC", defaultTopic)
-	channel := envOrDefault("MQ_CHANNEL", defaultChannel)
-	nsqdAddr := envOrDefault("NSQD_TCP_ADDR", defaultNSQDTCPAddr)
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("panic: %v\n%s", rec, debug.Stack())
+			os.Exit(1)
+		}
+	}()
 
-	config := nsq.NewConfig()
-	consumer, err := nsq.NewConsumer(topic, channel, config)
+	db, err := helper.InitDB()
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
+	log.Println("db connected")
 
-	consumer.AddHandler(&billingHandler{})
+	billingEngineRepo := repo.NewLoanRepo(db)
+	billingEngineUC := usecase.NewBillingEngineUsecase(billingEngineRepo)
 
-	if err := consumer.ConnectToNSQD(nsqdAddr); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("consuming topic=%q channel=%q via nsqd=%q", topic, channel, nsqdAddr)
+	consumers := []*nsq.Consumer{}
+	consumers = append(consumers, register("disburse_loan", "billing_engine", mq.NewDisburseLoanHandler(billingEngineUC)))
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
 	log.Println("stopping consumer")
-	consumer.Stop()
-	<-consumer.StopChan
+	for _, c := range consumers {
+		c.Stop()
+		<-c.StopChan
+	}
+
+}
+
+func register(topic, channel string, handler nsq.Handler) *nsq.Consumer {
+	config := nsq.NewConfig()
+	config.DefaultRequeueDelay = 30 * time.Second
+	consumer, err := nsq.NewConsumer(topic, channel, config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	consumer.AddHandler(handler)
+
+	if err := consumer.ConnectToNSQD(defaultNSQDTCPAddr); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("consuming topic=%q channel=%q via nsqd=%q", topic, channel, defaultNSQDTCPAddr)
+
+	return consumer
 }

@@ -17,39 +17,38 @@ import (
 	"amartha-test/usecase"
 )
 
-// panicHandler stops the service on any handler panic instead of
-// letting the request fail silently while the process keeps running.
-func panicHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if rec := recover(); rec != nil {
-				log.Printf("panic: %v\n%s", rec, debug.Stack())
-				os.Exit(1)
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("panic: %v\n%s", rec, debug.Stack())
+			os.Exit(1)
+		}
+	}()
+
 	db, err := helper.InitDB()
 	if err != nil {
 		panic(err)
 	}
 	log.Println("db connected")
 
+	publisher, err := helper.NewNSQPublisher()
+	if err != nil {
+		panic(err)
+	}
+	log.Println("publisher connected")
+
 	repo := repo.NewLoanRepo(db)
 
 	billingEngineUsecase := usecase.NewBillingEngineUsecase(repo)
 
-	billingEngineHandler := handler.NewBillingEngineHandler(billingEngineUsecase)
+	billingEngineHandler := handler.NewHTTPHandler(billingEngineUsecase, publisher)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux, billingEngineHandler)
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: panicHandler(mux),
+		Handler: mux,
 	}
 
 	go func() {

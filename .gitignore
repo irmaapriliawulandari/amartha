@@ -1,0 +1,4 @@
+coverage.out
+nsqd.dat
+.claude/settings.local.json
+.DS_Store

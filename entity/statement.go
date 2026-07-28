@@ -49,6 +49,13 @@ type LatestStatement struct {
 	IsDelinquent      bool            `json:"is_delinquent"`
 }
 
+// OverdueCandidate identifies a statement eligible to be marked overdue.
+type OverdueCandidate struct {
+	StatementID int64
+	LoanID      int64
+	BorrowerID  int64
+}
+
 // MakePaymentResponse confirms a payment applied to a loan's latest statement.
 type MakePaymentResponse struct {
 	LoanID            int64           `json:"loan_id"`

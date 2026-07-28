@@ -6,18 +6,28 @@ import (
 	"os/signal"
 	"syscall"
 
+	handlercron "amartha-test/handler/cron"
+	"amartha-test/helper"
+	"amartha-test/repo"
+	"amartha-test/usecase"
+
 	"github.com/robfig/cron/v3"
 )
 
-// runBillingJob is the scheduled job body. Replace with real billing engine logic.
-func runBillingJob() {
-	log.Println("running billing job")
-}
-
 func main() {
+	db, err := helper.InitDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("db connected")
+
+	loanRepo := repo.NewLoanRepo(db)
+	billingEngineUsecase := usecase.NewBillingEngineUsecase(loanRepo)
+
 	c := cron.New()
 
-	if _, err := c.AddFunc("@daily", runBillingJob); err != nil {
+	handler := handlercron.NewCronHandler(billingEngineUsecase)
+	if _, err := c.AddFunc("0 1 * * *", handler.MarkOverdue); err != nil {
 		log.Fatal(err)
 	}
 

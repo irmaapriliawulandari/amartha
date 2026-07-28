@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"testing"
+	"time"
 
 	"amartha-test/entity"
 
@@ -237,6 +238,83 @@ func TestLoanRepo_IsLoanDelinquent(t *testing.T) {
 
 		r := &loanRepo{db: db}
 		_, err = r.IsLoanDelinquent(borrowerID, loanID)
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestLoanRepo_InsertDelinquencyHistTx(t *testing.T) {
+	dh := entity.DelinquencyHistDB{BorrowerID: 1, LoanID: 2, StatementID: 3}
+	pattern := regexp.QuoteMeta("insert into delinquency_hist")
+
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+
+		mock.ExpectQuery(pattern).
+			WithArgs(dh.BorrowerID, dh.LoanID, dh.StatementID, dh.ClearedAt, dh.UpdatedAt).
+			WillReturnRows(sqlmock.NewRows([]string{"dh_id"}).AddRow(int64(7)))
+		mock.ExpectCommit()
+
+		r := &loanRepo{db: db}
+		err = r.InsertDelinquencyHistTx(tx, dh)
+		require.NoError(t, tx.Commit())
+
+		require.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestLoanRepo_ClearDelinquency(t *testing.T) {
+	loanID := int64(1)
+	now := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
+	pattern := regexp.QuoteMeta("update delinquency_hist")
+
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+
+		mock.ExpectExec(pattern).
+			WithArgs(now, loanID).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		r := &loanRepo{db: db}
+		err = r.ClearDelinquency(tx, loanID, now)
+		require.NoError(t, tx.Commit())
+
+		require.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("exec error is returned", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+
+		mock.ExpectExec(pattern).
+			WithArgs(now, loanID).
+			WillReturnError(errors.New("connection refused"))
+		mock.ExpectRollback()
+
+		r := &loanRepo{db: db}
+		err = r.ClearDelinquency(tx, loanID, now)
+		require.NoError(t, tx.Rollback())
 
 		assert.ErrorContains(t, err, "connection refused")
 		assert.NoError(t, mock.ExpectationsWereMet())

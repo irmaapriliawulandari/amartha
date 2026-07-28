@@ -6,10 +6,41 @@ import (
 	"time"
 )
 
+// MakePayment pays off a loan's latest statement (installment + carry
+// over), marks any of its still-overdue prior statements as paid late, and
+// clears the loan's open delinquency records — all in one transaction,
+// with the latest statement row locked for the duration to prevent a
+// concurrent double payment.
 func (uc *billingEngineUsecase) MakePayment(loanID int64, now time.Time) (entity.MakePaymentResponse, error) {
-	statement, err := uc.repo.MakePayment(loanID, now)
+	tx, err := uc.repo.BeginTx()
 	if err != nil {
 		return entity.MakePaymentResponse{}, fmt.Errorf("make payment: %w", err)
+	}
+
+	statement, err := uc.repo.GetLatestStatementForUpdate(tx, loanID, now)
+	if err != nil {
+		return entity.MakePaymentResponse{}, rollback(tx, fmt.Errorf("make payment: %w", err))
+	}
+
+	if statement.Status == entity.StatementStatusPaid || statement.Status == entity.StatementStatusPaidLate {
+		return entity.MakePaymentResponse{}, rollback(tx, entity.ErrStatementAlreadyPaid)
+	}
+
+	paidAmount := statement.InstallmentAmount.Add(statement.CarryOverAmount)
+	if err := uc.repo.UpdateStatementPaid(tx, statement.StatementID, paidAmount, now); err != nil {
+		return entity.MakePaymentResponse{}, rollback(tx, fmt.Errorf("make payment: %w", err))
+	}
+
+	if err := uc.repo.MarkPriorOverdueAsPaidLate(tx, loanID, now); err != nil {
+		return entity.MakePaymentResponse{}, rollback(tx, fmt.Errorf("make payment: %w", err))
+	}
+
+	if err := uc.repo.ClearDelinquency(tx, loanID, now); err != nil {
+		return entity.MakePaymentResponse{}, rollback(tx, fmt.Errorf("make payment: %w", err))
+	}
+
+	if err := tx.Commit(); err != nil {
+		return entity.MakePaymentResponse{}, fmt.Errorf("make payment: commit transaction: %w", err)
 	}
 
 	outstanding, _, err := uc.repo.GetOutstandingAmount(loanID)
@@ -20,8 +51,8 @@ func (uc *billingEngineUsecase) MakePayment(loanID int64, now time.Time) (entity
 	return entity.MakePaymentResponse{
 		LoanID:            loanID,
 		StatementID:       statement.StatementID,
-		PaidAmount:        statement.PaidAmount,
-		PaidAt:            statement.PaidAt.Time.Format("2006-01-02 15:04:05"),
+		PaidAmount:        paidAmount,
+		PaidAt:            now.Format("2006-01-02 15:04:05"),
 		OutstandingAmount: outstanding,
 	}, nil
 }

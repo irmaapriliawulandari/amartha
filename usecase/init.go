@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"amartha-test/entity"
+	txrepo "amartha-test/repo"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -18,7 +19,20 @@ type repo interface {
 	IsDelinquent(borrowerID int64) (bool, error)
 	IsEverDelinquent(borrowerID int64) (bool, error)
 	IsLoanDelinquent(borrowerID, loanID int64) (bool, error)
-	MakePayment(loanID int64, now time.Time) (entity.StatementDB, error)
+
+	BeginTx() (txrepo.Tx, error)
+	GetLatestStatementForUpdate(tx txrepo.Tx, loanID int64, before time.Time) (entity.StatementDB, error)
+	UpdateStatementPaid(tx txrepo.Tx, statementID int64, paidAmount decimal.Decimal, now time.Time) error
+	MarkPriorOverdueAsPaidLate(tx txrepo.Tx, loanID int64, now time.Time) error
+	ClearDelinquency(tx txrepo.Tx, loanID int64, now time.Time) error
+
+	ListOverdueCandidates(deadline time.Time) ([]entity.OverdueCandidate, error)
+	GetStatementForUpdate(tx txrepo.Tx, statementID int64) (entity.StatementDB, error)
+	MarkStatementOverdue(tx txrepo.Tx, statementID int64, now time.Time) error
+	GetNextStatementForUpdate(tx txrepo.Tx, loanID int64, afterDate time.Time) (statementID int64, found bool, err error)
+	UpdateCarryOver(tx txrepo.Tx, statementID int64, carryOverAmount decimal.Decimal, now time.Time) error
+	GetPreviousStatementStatus(tx txrepo.Tx, loanID int64, beforeDate time.Time) (status int, found bool, err error)
+	InsertDelinquencyHistTx(tx txrepo.Tx, dh entity.DelinquencyHistDB) error
 }
 
 type billingEngineUsecase struct {

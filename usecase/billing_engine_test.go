@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	txrepo "amartha-test/repo"
 	"errors"
 	"testing"
 	"time"
@@ -14,6 +15,22 @@ import (
 
 type mockRepo struct {
 	mock.Mock
+}
+
+// mockTx is a mock.Mock-backed txrepo.Tx, so tests can assert whether
+// Commit or Rollback was called.
+type mockTx struct {
+	mock.Mock
+}
+
+func (m *mockTx) Commit() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *mockTx) Rollback() error {
+	args := m.Called()
+	return args.Error(0)
 }
 
 func (m *mockRepo) GetStatements(loanID int64, until time.Time, limit, offset int) ([]entity.StatementDB, error) {
@@ -71,9 +88,72 @@ func (m *mockRepo) IsLoanDelinquent(borrowerID, loanID int64) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *mockRepo) MakePayment(loanID int64, now time.Time) (entity.StatementDB, error) {
-	args := m.Called(loanID, now)
+func (m *mockRepo) BeginTx() (txrepo.Tx, error) {
+	args := m.Called()
+	var tx txrepo.Tx
+	if args.Get(0) != nil {
+		tx = args.Get(0).(txrepo.Tx)
+	}
+	return tx, args.Error(1)
+}
+
+func (m *mockRepo) GetLatestStatementForUpdate(tx txrepo.Tx, loanID int64, before time.Time) (entity.StatementDB, error) {
+	args := m.Called(tx, loanID, before)
 	return args.Get(0).(entity.StatementDB), args.Error(1)
+}
+
+func (m *mockRepo) UpdateStatementPaid(tx txrepo.Tx, statementID int64, paidAmount decimal.Decimal, now time.Time) error {
+	args := m.Called(tx, statementID, paidAmount, now)
+	return args.Error(0)
+}
+
+func (m *mockRepo) MarkPriorOverdueAsPaidLate(tx txrepo.Tx, loanID int64, now time.Time) error {
+	args := m.Called(tx, loanID, now)
+	return args.Error(0)
+}
+
+func (m *mockRepo) ClearDelinquency(tx txrepo.Tx, loanID int64, now time.Time) error {
+	args := m.Called(tx, loanID, now)
+	return args.Error(0)
+}
+
+func (m *mockRepo) ListOverdueCandidates(deadline time.Time) ([]entity.OverdueCandidate, error) {
+	args := m.Called(deadline)
+	var res []entity.OverdueCandidate
+	if args.Get(0) != nil {
+		res = args.Get(0).([]entity.OverdueCandidate)
+	}
+	return res, args.Error(1)
+}
+
+func (m *mockRepo) GetStatementForUpdate(tx txrepo.Tx, statementID int64) (entity.StatementDB, error) {
+	args := m.Called(tx, statementID)
+	return args.Get(0).(entity.StatementDB), args.Error(1)
+}
+
+func (m *mockRepo) MarkStatementOverdue(tx txrepo.Tx, statementID int64, now time.Time) error {
+	args := m.Called(tx, statementID, now)
+	return args.Error(0)
+}
+
+func (m *mockRepo) GetNextStatementForUpdate(tx txrepo.Tx, loanID int64, afterDate time.Time) (int64, bool, error) {
+	args := m.Called(tx, loanID, afterDate)
+	return args.Get(0).(int64), args.Bool(1), args.Error(2)
+}
+
+func (m *mockRepo) UpdateCarryOver(tx txrepo.Tx, statementID int64, carryOverAmount decimal.Decimal, now time.Time) error {
+	args := m.Called(tx, statementID, carryOverAmount, now)
+	return args.Error(0)
+}
+
+func (m *mockRepo) GetPreviousStatementStatus(tx txrepo.Tx, loanID int64, beforeDate time.Time) (int, bool, error) {
+	args := m.Called(tx, loanID, beforeDate)
+	return args.Int(0), args.Bool(1), args.Error(2)
+}
+
+func (m *mockRepo) InsertDelinquencyHistTx(tx txrepo.Tx, dh entity.DelinquencyHistDB) error {
+	args := m.Called(tx, dh)
+	return args.Error(0)
 }
 
 func TestBillingEngineUsecase_GetStatements(t *testing.T) {

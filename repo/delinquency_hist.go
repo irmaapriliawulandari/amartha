@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 )
 
-func (r *loanRepo) InsertDelinquencyHist(dh entity.DelinquencyHistDB) (int64, error) {
+func insertDelinquencyHist(q queryRower, dh entity.DelinquencyHistDB) (int64, error) {
 	const query = `
 		insert into delinquency_hist (
 			borrower_id, loan_id, statement_id, cleared_at, updated_at
@@ -18,7 +19,7 @@ func (r *loanRepo) InsertDelinquencyHist(dh entity.DelinquencyHistDB) (int64, er
 	`
 
 	var dhID int64
-	err := r.db.QueryRow(query,
+	err := q.QueryRow(query,
 		dh.BorrowerID,
 		dh.LoanID,
 		dh.StatementID,
@@ -33,6 +34,41 @@ func (r *loanRepo) InsertDelinquencyHist(dh entity.DelinquencyHistDB) (int64, er
 	}
 
 	return dhID, nil
+}
+
+func (r *loanRepo) InsertDelinquencyHist(dh entity.DelinquencyHistDB) (int64, error) {
+	return insertDelinquencyHist(r.db, dh)
+}
+
+// InsertDelinquencyHistTx is InsertDelinquencyHist run as part of a caller-held transaction.
+func (r *loanRepo) InsertDelinquencyHistTx(tx Tx, dh entity.DelinquencyHistDB) error {
+	t, err := sqlTx(tx)
+	if err != nil {
+		return err
+	}
+
+	_, err = insertDelinquencyHist(t, dh)
+	return err
+}
+
+// ClearDelinquency clears every open delinquency record for a loan.
+func (r *loanRepo) ClearDelinquency(tx Tx, loanID int64, now time.Time) error {
+	t, err := sqlTx(tx)
+	if err != nil {
+		return err
+	}
+
+	const query = `
+		update delinquency_hist
+		set cleared_at = $1, updated_at = $1
+		where loan_id = $2 and cleared_at is null
+	`
+
+	if _, err := t.Exec(query, now, loanID); err != nil {
+		return fmt.Errorf("clear delinquency_hist: %w", err)
+	}
+
+	return nil
 }
 
 func (r *loanRepo) IsDelinquent(borrowerID int64) (bool, error) {

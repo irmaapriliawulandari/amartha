@@ -10,7 +10,8 @@ import (
 // over), marks any of its still-overdue prior statements as paid late, and
 // clears the loan's open delinquency records — all in one transaction,
 // with the latest statement row locked for the duration to prevent a
-// concurrent double payment.
+// concurrent double payment. If the paid statement was the loan's last
+// cycle, the loan's status is updated to closed.
 func (uc *billingEngineUsecase) MakePayment(loanID int64, now time.Time) (entity.MakePaymentResponse, error) {
 	tx, err := uc.repo.BeginTx()
 	if err != nil {
@@ -29,6 +30,16 @@ func (uc *billingEngineUsecase) MakePayment(loanID int64, now time.Time) (entity
 	paidAmount := statement.InstallmentAmount.Add(statement.CarryOverAmount)
 	if err := uc.repo.UpdateStatementPaid(tx, statement.StatementID, paidAmount, now); err != nil {
 		return entity.MakePaymentResponse{}, rollback(tx, fmt.Errorf("make payment: %w", err))
+	}
+
+	_, hasNextStatement, err := uc.repo.GetNextStatementForUpdate(tx, loanID, statement.StatementDate)
+	if err != nil {
+		return entity.MakePaymentResponse{}, rollback(tx, fmt.Errorf("make payment: %w", err))
+	}
+	if !hasNextStatement {
+		if err := uc.repo.UpdateLoanStatus(tx, loanID, entity.LoanStatusClosed, now); err != nil {
+			return entity.MakePaymentResponse{}, rollback(tx, fmt.Errorf("make payment: %w", err))
+		}
 	}
 
 	if err := uc.repo.MarkPriorOverdueAsPaidLate(tx, loanID, now); err != nil {

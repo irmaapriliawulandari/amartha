@@ -494,7 +494,7 @@ func TestLoanRepo_GetStatementForUpdate(t *testing.T) {
 
 func TestLoanRepo_MarkStatementOverdue(t *testing.T) {
 	now := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
-	pattern := regexp.QuoteMeta("set status = $1, updated_at = $2")
+	pattern := regexp.QuoteMeta("set status = $1, updated_at = $2 where statement_id = $3 and status = $4")
 
 	t.Run("success", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
@@ -503,7 +503,7 @@ func TestLoanRepo_MarkStatementOverdue(t *testing.T) {
 
 		tx := beginTx(t, db, mock)
 		mock.ExpectExec(pattern).
-			WithArgs(entity.StatementStatusOverdue, now, int64(10)).
+			WithArgs(entity.StatementStatusOverdue, now, int64(10), entity.StatementStatusUnpaid).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 

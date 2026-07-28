@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/shopspring/decimal"
 )
@@ -99,6 +100,26 @@ func (r *loanRepo) GetOutstandingAmount(loanID int64) (outstanding decimal.Decim
 	}
 
 	return outstanding, borrowerID, nil
+}
+
+// UpdateLoanStatus sets a loan's status.
+func (r *loanRepo) UpdateLoanStatus(tx Tx, loanID int64, status int, now time.Time) error {
+	t, err := sqlTx(tx)
+	if err != nil {
+		return err
+	}
+
+	const query = `
+		update loan
+		set status = $1, updated_at = $2
+		where loan_id = $3
+	`
+
+	if _, err := t.Exec(query, status, now, loanID); err != nil {
+		return fmt.Errorf("update loan status: %w", err)
+	}
+
+	return nil
 }
 
 func rollback(tx *sql.Tx, cause error) error {

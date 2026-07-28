@@ -205,10 +205,10 @@ func (r *loanRepo) MarkStatementOverdue(tx Tx, statementID int64, now time.Time)
 	const query = `
 		update statement
 		set status = $1, updated_at = $2
-		where statement_id = $3
+		where statement_id = $3 and status = $4
 	`
 
-	if _, err := t.Exec(query, entity.StatementStatusOverdue, now, statementID); err != nil {
+	if _, err := t.Exec(query, entity.StatementStatusOverdue, now, statementID, entity.StatementStatusUnpaid); err != nil {
 		return fmt.Errorf("update statement: %w", err)
 	}
 

@@ -28,6 +28,7 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 			Status:            entity.StatementStatusUnpaid,
 		}, nil)
 		repo.On("UpdateStatementPaid", tx, int64(5), decimal.NewFromInt(120000), now).Return(nil)
+		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(6), true, nil)
 		repo.On("MarkPriorOverdueAsPaidLate", tx, loanID, now).Return(nil)
 		repo.On("ClearDelinquency", tx, loanID, now).Return(nil)
 		tx.On("Commit").Return(nil)
@@ -47,6 +48,57 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 		repo.AssertExpectations(t)
 		tx.AssertExpectations(t)
 		tx.AssertNotCalled(t, "Rollback")
+		repo.AssertNotCalled(t, "UpdateLoanStatus", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("last cycle paid closes the loan", func(t *testing.T) {
+		repo := new(mockRepo)
+		tx := new(mockTx)
+
+		repo.On("BeginTx").Return(tx, nil)
+		repo.On("GetLatestStatementForUpdate", tx, loanID, now).Return(entity.StatementDB{
+			StatementID:       5,
+			InstallmentAmount: decimal.NewFromInt(110000),
+			CarryOverAmount:   decimal.NewFromInt(10000),
+			Status:            entity.StatementStatusUnpaid,
+		}, nil)
+		repo.On("UpdateStatementPaid", tx, int64(5), decimal.NewFromInt(120000), now).Return(nil)
+		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(0), false, nil)
+		repo.On("UpdateLoanStatus", tx, loanID, entity.LoanStatusClosed, now).Return(nil)
+		repo.On("MarkPriorOverdueAsPaidLate", tx, loanID, now).Return(nil)
+		repo.On("ClearDelinquency", tx, loanID, now).Return(nil)
+		tx.On("Commit").Return(nil)
+		repo.On("GetOutstandingAmount", loanID).Return(decimal.Zero, int64(2), nil)
+
+		uc := NewBillingEngineUsecase(repo)
+		got, err := uc.MakePayment(loanID, now)
+
+		assert.NoError(t, err)
+		assert.Equal(t, int64(5), got.StatementID)
+		repo.AssertExpectations(t)
+		tx.AssertExpectations(t)
+	})
+
+	t.Run("update loan status failure rolls back the whole transaction", func(t *testing.T) {
+		repo := new(mockRepo)
+		tx := new(mockTx)
+
+		repo.On("BeginTx").Return(tx, nil)
+		repo.On("GetLatestStatementForUpdate", tx, loanID, now).Return(entity.StatementDB{
+			StatementID: 5, Status: entity.StatementStatusUnpaid,
+		}, nil)
+		repo.On("UpdateStatementPaid", tx, int64(5), mock.Anything, now).Return(nil)
+		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(0), false, nil)
+		repoErr := errors.New("connection refused")
+		repo.On("UpdateLoanStatus", tx, loanID, entity.LoanStatusClosed, now).Return(repoErr)
+		tx.On("Rollback").Return(nil)
+
+		uc := NewBillingEngineUsecase(repo)
+		_, err := uc.MakePayment(loanID, now)
+
+		assert.ErrorIs(t, err, repoErr)
+		tx.AssertExpectations(t)
+		repo.AssertNotCalled(t, "MarkPriorOverdueAsPaidLate", mock.Anything, mock.Anything, mock.Anything)
 	})
 
 	t.Run("no statement to pay rolls back and is passed through", func(t *testing.T) {
@@ -83,7 +135,7 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 		repo.AssertNotCalled(t, "UpdateStatementPaid", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
-	t.Run("update failure rolls back the whole transaction", func(t *testing.T) {
+	t.Run("update statement paid failure rolls back the whole transaction", func(t *testing.T) {
 		repo := new(mockRepo)
 		tx := new(mockTx)
 
@@ -112,6 +164,7 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 			StatementID: 5, Status: entity.StatementStatusUnpaid,
 		}, nil)
 		repo.On("UpdateStatementPaid", tx, int64(5), mock.Anything, now).Return(nil)
+		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(6), true, nil)
 		repo.On("MarkPriorOverdueAsPaidLate", tx, loanID, now).Return(nil)
 		repo.On("ClearDelinquency", tx, loanID, now).Return(nil)
 		tx.On("Commit").Return(nil)

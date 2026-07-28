@@ -245,3 +245,53 @@ func TestLoanRepo_GetOutstandingAmount(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestLoanRepo_UpdateLoanStatus(t *testing.T) {
+	loanID := int64(1)
+	now := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
+	pattern := regexp.QuoteMeta("update loan")
+
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+
+		mock.ExpectExec(pattern).
+			WithArgs(entity.LoanStatusClosed, now, loanID).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		r := &loanRepo{db: db}
+		err = r.UpdateLoanStatus(tx, loanID, entity.LoanStatusClosed, now)
+		require.NoError(t, tx.Commit())
+
+		require.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("exec error is returned", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectBegin()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+
+		mock.ExpectExec(pattern).
+			WithArgs(entity.LoanStatusClosed, now, loanID).
+			WillReturnError(errors.New("connection refused"))
+		mock.ExpectRollback()
+
+		r := &loanRepo{db: db}
+		err = r.UpdateLoanStatus(tx, loanID, entity.LoanStatusClosed, now)
+		require.NoError(t, tx.Rollback())
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}

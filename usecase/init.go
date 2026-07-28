@@ -25,6 +25,7 @@ type repo interface {
 	UpdateStatementPaid(tx txrepo.Tx, statementID int64, paidAmount decimal.Decimal, now time.Time) error
 	MarkPriorOverdueAsPaidLate(tx txrepo.Tx, loanID int64, now time.Time) error
 	ClearDelinquency(tx txrepo.Tx, loanID int64, now time.Time) error
+	UpdateLoanStatus(tx txrepo.Tx, loanID int64, status int, now time.Time) error
 
 	ListOverdueCandidates(deadline time.Time) ([]entity.OverdueCandidate, error)
 	GetStatementForUpdate(tx txrepo.Tx, statementID int64) (entity.StatementDB, error)

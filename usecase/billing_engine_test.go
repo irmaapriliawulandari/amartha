@@ -117,6 +117,11 @@ func (m *mockRepo) ClearDelinquency(tx txrepo.Tx, loanID int64, now time.Time) e
 	return args.Error(0)
 }
 
+func (m *mockRepo) UpdateLoanStatus(tx txrepo.Tx, loanID int64, status int, now time.Time) error {
+	args := m.Called(tx, loanID, status, now)
+	return args.Error(0)
+}
+
 func (m *mockRepo) ListOverdueCandidates(deadline time.Time) ([]entity.OverdueCandidate, error) {
 	args := m.Called(deadline)
 	var res []entity.OverdueCandidate

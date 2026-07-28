@@ -6,9 +6,28 @@ import (
 	"net/http"
 )
 
+type publisher interface {
+	Publish(topic string, body []byte) error
+}
+
+type httpHandler struct {
+	uc        usecases
+	publisher publisher
+}
+
+func NewHTTPHandler(uc usecases, publisher publisher) *httpHandler {
+	return &httpHandler{
+		uc:        uc,
+		publisher: publisher,
+	}
+}
+
 // RegisterRoutes wires the billing engine routes onto mux, protected by AuthMiddleware.
-func RegisterRoutes(mux *http.ServeMux, h *billingEngine) {
-	mux.HandleFunc("/ping", auth.AuthMiddleware(Ping))
+func RegisterRoutes(mux *http.ServeMux, h *httpHandler) {
+	mux.HandleFunc("/ping", Ping)
+
+	mux.HandleFunc("/publish", auth.AuthMiddleware(h.Publish))
+
 	mux.HandleFunc("/billing-engine/get-statements", auth.AuthMiddleware(h.GetStatements))
 }
 

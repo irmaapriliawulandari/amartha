@@ -14,11 +14,7 @@ const (
 )
 
 type usecases interface {
-	GetStatements(loanID int64, until time.Time, limit, offset int) ([]entity.LoanStatement, error)
-}
-
-type billingEngine struct {
-	uc usecases
+	GetStatements(loanID int64, until time.Time, limit, offset int) ([]entity.Statement, error)
 }
 
 type getStatementsRequest struct {
@@ -27,14 +23,8 @@ type getStatementsRequest struct {
 	Offset int   `json:"offset"`
 }
 
-func NewBillingEngineHandler(uc usecases) *billingEngine {
-	return &billingEngine{
-		uc: uc,
-	}
-}
-
-// GetStatement returns
-func (h *billingEngine) GetStatements(w http.ResponseWriter, r *http.Request) {
+// GetStatement returns all previous and current statements
+func (h *httpHandler) GetStatements(w http.ResponseWriter, r *http.Request) {
 	var req getStatementsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LoanID <= 0 {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -43,7 +33,7 @@ func (h *billingEngine) GetStatements(w http.ResponseWriter, r *http.Request) {
 
 	// now := time.Now()
 	now := time.Date(2026, 8, 25, 0, 0, 0, 0, time.Now().Location())
-	statetementList, err := h.uc.GetStatements(req.LoanID, now.AddDate(0, 0, 7), req.Limit, req.Offset)
+	statetementList, err := h.uc.GetStatements(req.LoanID, now, req.Limit, req.Offset)
 	if err != nil {
 		http.Error(w, "failed to get data", http.StatusInternalServerError)
 		log.Printf("[GetStatements] failed to get data, err: %s", err.Error())

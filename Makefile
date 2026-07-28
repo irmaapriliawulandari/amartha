@@ -15,7 +15,8 @@ build:
 	go build -o bin/mq ./mq
 
 test:
-	go test ./...
+	go test ./... -coverprofile=coverage.out
+	go tool cover -func=coverage.out
 
 clean:
-	rm -rf bin
+	rm -rf bin coverage.out

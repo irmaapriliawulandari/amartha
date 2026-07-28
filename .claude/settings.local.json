@@ -13,7 +13,13 @@
       "Bash(gofmt -w mq/mq.go)",
       "Bash(go vet *)",
       "Bash(go run *)",
-      "Bash(echo \"exit code: $?\")"
+      "Bash(echo \"exit code: $?\")",
+      "Bash(go mod *)",
+      "Bash(go test *)",
+      "Bash(cat)",
+      "Bash(cp /tmp/debug_test.go handler/zz_debug_test.go)",
+      "Bash(go env *)",
+      "Bash(go clean *)"
     ]
   }
 }

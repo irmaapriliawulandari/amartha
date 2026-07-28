@@ -29,11 +29,11 @@ func TestLoanRepo_GetStatements(t *testing.T) {
 		defer db.Close()
 
 		rows := sqlmock.NewRows(columns).
-			AddRow(int64(1), "100000", "0", "0", time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC), 0).
+			AddRow(int64(1), "100000", "0", "0", time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC), entity.StatementStatusPublished).
 			AddRow(int64(2), "100000", "0", "100000", time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC), 1)
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID, until, limit, offset).
+			WithArgs(loanID, until, entity.StatementStatusCreated, limit, offset).
 			WillReturnRows(rows)
 
 		r := &loanRepo{db: db}
@@ -44,7 +44,7 @@ func TestLoanRepo_GetStatements(t *testing.T) {
 			{
 				StatementID: 1, LoanID: loanID, StatementDate: time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC),
 				InstallmentAmount: decimal.NewFromInt(100000), CarryOverAmount: decimal.NewFromInt(0), PaidAmount: decimal.NewFromInt(0),
-				Status: entity.StatementStatusUnpaid,
+				Status: entity.StatementStatusPublished,
 			},
 			{
 				StatementID: 2, LoanID: loanID, StatementDate: time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC),
@@ -61,7 +61,7 @@ func TestLoanRepo_GetStatements(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID, until, limit, offset).
+			WithArgs(loanID, until, entity.StatementStatusCreated, limit, offset).
 			WillReturnError(errors.New("connection refused"))
 
 		r := &loanRepo{db: db}
@@ -82,7 +82,7 @@ func TestLoanRepo_GetStatements(t *testing.T) {
 			RowError(0, errors.New("row read failure"))
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID, until, limit, offset).
+			WithArgs(loanID, until, entity.StatementStatusCreated, limit, offset).
 			WillReturnRows(rows)
 
 		r := &loanRepo{db: db}
@@ -101,7 +101,7 @@ func TestLoanRepo_GetStatements(t *testing.T) {
 		rows := sqlmock.NewRows(columns)
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID, until, limit, offset).
+			WithArgs(loanID, until, entity.StatementStatusCreated, limit, offset).
 			WillReturnRows(rows)
 
 		r := &loanRepo{db: db}
@@ -129,7 +129,7 @@ func TestLoanRepo_GetLatestStatement(t *testing.T) {
 			AddRow(int64(5), "110000", "10000", "120000", time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), entity.StatementStatusPaid)
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID, before).
+			WithArgs(loanID, before, entity.StatementStatusCreated).
 			WillReturnRows(rows)
 
 		r := &loanRepo{db: db}
@@ -151,7 +151,7 @@ func TestLoanRepo_GetLatestStatement(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID, before).
+			WithArgs(loanID, before, entity.StatementStatusCreated).
 			WillReturnRows(sqlmock.NewRows(columns))
 
 		r := &loanRepo{db: db}
@@ -167,7 +167,7 @@ func TestLoanRepo_GetLatestStatement(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(queryPattern).
-			WithArgs(loanID, before).
+			WithArgs(loanID, before, entity.StatementStatusCreated).
 			WillReturnError(errors.New("connection refused"))
 
 		r := &loanRepo{db: db}
@@ -186,7 +186,7 @@ func TestLoanRepo_InsertStatement(t *testing.T) {
 		PaidAmount:        decimal.NewFromInt(0),
 		StatementDate:     time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
 		Deadline:          time.Date(2026, 8, 8, 0, 0, 0, 0, time.UTC),
-		Status:            entity.StatementStatusUnpaid,
+		Status:            entity.StatementStatusCreated,
 		PaidAt:            sql.NullTime{},
 		UpdatedAt:         sql.NullTime{},
 	}
@@ -299,9 +299,9 @@ func TestLoanRepo_GetLatestStatementForUpdate(t *testing.T) {
 
 		tx := beginTx(t, db, mock)
 		mock.ExpectQuery(selectPattern).
-			WithArgs(loanID, now).
+			WithArgs(loanID, now, entity.StatementStatusCreated).
 			WillReturnRows(sqlmock.NewRows(columns).
-				AddRow(int64(5), "110000", "10000", "0", time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), entity.StatementStatusUnpaid))
+				AddRow(int64(5), "110000", "10000", "0", time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), entity.StatementStatusPublished))
 		mock.ExpectCommit()
 
 		r := &loanRepo{db: db}
@@ -320,7 +320,7 @@ func TestLoanRepo_GetLatestStatementForUpdate(t *testing.T) {
 
 		tx := beginTx(t, db, mock)
 		mock.ExpectQuery(selectPattern).
-			WithArgs(loanID, now).
+			WithArgs(loanID, now, entity.StatementStatusCreated).
 			WillReturnRows(sqlmock.NewRows(columns))
 		mock.ExpectRollback()
 
@@ -417,7 +417,7 @@ func TestLoanRepo_ListOverdueCandidates(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(pattern).
-			WithArgs(entity.StatementStatusUnpaid, deadline, entity.LoanStatusActive).
+			WithArgs(entity.StatementStatusPublished, deadline, entity.LoanStatusActive).
 			WillReturnRows(sqlmock.NewRows([]string{"statement_id", "loan_id", "borrower_id"}).
 				AddRow(int64(10), int64(1), int64(2)))
 
@@ -435,11 +435,50 @@ func TestLoanRepo_ListOverdueCandidates(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(pattern).
-			WithArgs(entity.StatementStatusUnpaid, deadline, entity.LoanStatusActive).
+			WithArgs(entity.StatementStatusPublished, deadline, entity.LoanStatusActive).
 			WillReturnError(errors.New("connection refused"))
 
 		r := &loanRepo{db: db}
 		_, err = r.ListOverdueCandidates(deadline)
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestLoanRepo_ListPublishableCandidates(t *testing.T) {
+	statementDate := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
+	pattern := regexp.QuoteMeta("from statement")
+
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(pattern).
+			WithArgs(statementDate, entity.StatementStatusCreated).
+			WillReturnRows(sqlmock.NewRows([]string{"statement_id", "loan_id"}).
+				AddRow(int64(10), int64(1)))
+
+		r := &loanRepo{db: db}
+		got, err := r.ListPublishableCandidates(statementDate)
+
+		require.NoError(t, err)
+		assert.Equal(t, []entity.PublishCandidate{{StatementID: 10, LoanID: 1}}, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error is returned", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(pattern).
+			WithArgs(statementDate, entity.StatementStatusCreated).
+			WillReturnError(errors.New("connection refused"))
+
+		r := &loanRepo{db: db}
+		_, err = r.ListPublishableCandidates(statementDate)
 
 		assert.ErrorContains(t, err, "connection refused")
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -459,7 +498,7 @@ func TestLoanRepo_GetStatementForUpdate(t *testing.T) {
 		mock.ExpectQuery(pattern).
 			WithArgs(int64(10)).
 			WillReturnRows(sqlmock.NewRows(columns).
-				AddRow(int64(1), "110000", "0", "0", time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC), entity.StatementStatusUnpaid))
+				AddRow(int64(1), "110000", "0", "0", time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC), entity.StatementStatusPublished))
 		mock.ExpectCommit()
 
 		r := &loanRepo{db: db}
@@ -503,12 +542,36 @@ func TestLoanRepo_MarkStatementOverdue(t *testing.T) {
 
 		tx := beginTx(t, db, mock)
 		mock.ExpectExec(pattern).
-			WithArgs(entity.StatementStatusOverdue, now, int64(10), entity.StatementStatusUnpaid).
+			WithArgs(entity.StatementStatusOverdue, now, int64(10), entity.StatementStatusPublished).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
 		r := &loanRepo{db: db}
 		err = r.MarkStatementOverdue(tx, 10, now)
+		require.NoError(t, tx.Commit())
+
+		require.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestLoanRepo_MarkStatementPublished(t *testing.T) {
+	now := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
+	pattern := regexp.QuoteMeta("set status = $1, updated_at = $2 where statement_id = $3 and status = $4")
+
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		tx := beginTx(t, db, mock)
+		mock.ExpectExec(pattern).
+			WithArgs(entity.StatementStatusPublished, now, int64(10), entity.StatementStatusCreated).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		r := &loanRepo{db: db}
+		err = r.MarkStatementPublished(tx, 10, now)
 		require.NoError(t, tx.Commit())
 
 		require.NoError(t, err)

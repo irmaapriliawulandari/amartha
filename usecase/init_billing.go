@@ -52,7 +52,7 @@ func buildStatements(loanDB entity.LoanDB) ([]entity.StatementDB, error) {
 			InstallmentAmount: amount,
 			StatementDate:     statementDate,
 			Deadline:          deadline,
-			Status:            entity.StatementStatusUnpaid,
+			Status:            entity.StatementStatusCreated,
 		}
 	}
 

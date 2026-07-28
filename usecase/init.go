@@ -34,6 +34,9 @@ type repo interface {
 	UpdateCarryOver(tx txrepo.Tx, statementID int64, carryOverAmount decimal.Decimal, now time.Time) error
 	GetPreviousStatementStatus(tx txrepo.Tx, loanID int64, beforeDate time.Time) (status int, found bool, err error)
 	InsertDelinquencyHistTx(tx txrepo.Tx, dh entity.DelinquencyHistDB) error
+
+	ListPublishableCandidates(statementDate time.Time) ([]entity.PublishCandidate, error)
+	MarkStatementPublished(tx txrepo.Tx, statementID int64, now time.Time) error
 }
 
 type billingEngineUsecase struct {

@@ -14,12 +14,12 @@ func (r *loanRepo) GetStatements(loanID int64, until time.Time, limit, offset in
 	const query = `
 		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, status
 		from statement
-		where loan_id = $1 and statement_date <= $2
+		where loan_id = $1 and statement_date <= $2 and status != $3
 		order by statement_date desc
-		limit $3 offset $4
+		limit $4 offset $5
 	`
 
-	rows, err := r.db.Query(query, loanID, until, limit, offset)
+	rows, err := r.db.Query(query, loanID, until, entity.StatementStatusCreated, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query statement: %w", err)
 	}
@@ -44,13 +44,13 @@ func (r *loanRepo) GetLatestStatement(loanID int64, before time.Time) (entity.St
 	const query = `
 		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, deadline, status
 		from statement
-		where loan_id = $1 and statement_date <= $2
+		where loan_id = $1 and statement_date <= $2 and status != $3
 		order by statement_date desc
 		limit 1
 	`
 
 	s := entity.StatementDB{LoanID: loanID}
-	err := r.db.QueryRow(query, loanID, before).Scan(
+	err := r.db.QueryRow(query, loanID, before, entity.StatementStatusCreated).Scan(
 		&s.StatementID, &s.InstallmentAmount, &s.CarryOverAmount, &s.PaidAmount, &s.StatementDate, &s.Deadline, &s.Status,
 	)
 	if err != nil {
@@ -75,14 +75,14 @@ func (r *loanRepo) GetLatestStatementForUpdate(tx Tx, loanID int64, before time.
 	const query = `
 		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, deadline, status
 		from statement
-		where loan_id = $1 and statement_date <= $2
+		where loan_id = $1 and statement_date <= $2 and status != $3
 		order by statement_date desc
 		limit 1
 		for update
 	`
 
 	s := entity.StatementDB{LoanID: loanID}
-	err = t.QueryRow(query, loanID, before).Scan(
+	err = t.QueryRow(query, loanID, before, entity.StatementStatusCreated).Scan(
 		&s.StatementID, &s.InstallmentAmount, &s.CarryOverAmount, &s.PaidAmount, &s.StatementDate, &s.Deadline, &s.Status,
 	)
 	if err != nil {
@@ -146,7 +146,7 @@ func (r *loanRepo) ListOverdueCandidates(deadline time.Time) ([]entity.OverdueCa
 		where s.status = $1 and s.deadline = $2 and l.status = $3
 	`
 
-	rows, err := r.db.Query(query, entity.StatementStatusUnpaid, deadline, entity.LoanStatusActive)
+	rows, err := r.db.Query(query, entity.StatementStatusPublished, deadline, entity.LoanStatusActive)
 	if err != nil {
 		return nil, fmt.Errorf("query overdue candidates: %w", err)
 	}
@@ -162,6 +162,36 @@ func (r *loanRepo) ListOverdueCandidates(deadline time.Time) ([]entity.OverdueCa
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate overdue candidates: %w", err)
+	}
+
+	return candidates, nil
+}
+
+// ListPublishableCandidates returns every statement dated exactly on
+// statementDate that hasn't been published yet.
+func (r *loanRepo) ListPublishableCandidates(statementDate time.Time) ([]entity.PublishCandidate, error) {
+	const query = `
+		select statement_id, loan_id
+		from statement
+		where statement_date = $1 and status = $2
+	`
+
+	rows, err := r.db.Query(query, statementDate, entity.StatementStatusCreated)
+	if err != nil {
+		return nil, fmt.Errorf("query publishable candidates: %w", err)
+	}
+	defer rows.Close()
+
+	var candidates []entity.PublishCandidate
+	for rows.Next() {
+		var c entity.PublishCandidate
+		if err := rows.Scan(&c.StatementID, &c.LoanID); err != nil {
+			return nil, fmt.Errorf("scan publish candidate: %w", err)
+		}
+		candidates = append(candidates, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate publish candidates: %w", err)
 	}
 
 	return candidates, nil
@@ -208,7 +238,28 @@ func (r *loanRepo) MarkStatementOverdue(tx Tx, statementID int64, now time.Time)
 		where statement_id = $3 and status = $4
 	`
 
-	if _, err := t.Exec(query, entity.StatementStatusOverdue, now, statementID, entity.StatementStatusUnpaid); err != nil {
+	if _, err := t.Exec(query, entity.StatementStatusOverdue, now, statementID, entity.StatementStatusPublished); err != nil {
+		return fmt.Errorf("update statement: %w", err)
+	}
+
+	return nil
+}
+
+// MarkStatementPublished marks a single statement published, making it
+// visible and payable.
+func (r *loanRepo) MarkStatementPublished(tx Tx, statementID int64, now time.Time) error {
+	t, err := sqlTx(tx)
+	if err != nil {
+		return err
+	}
+
+	const query = `
+		update statement
+		set status = $1, updated_at = $2
+		where statement_id = $3 and status = $4
+	`
+
+	if _, err := t.Exec(query, entity.StatementStatusPublished, now, statementID, entity.StatementStatusCreated); err != nil {
 		return fmt.Errorf("update statement: %w", err)
 	}
 

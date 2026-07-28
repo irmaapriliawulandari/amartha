@@ -9,18 +9,20 @@ import (
 )
 
 const (
-	StatementStatusOverdue  = -1
-	StatementStatusUnpaid   = 0
-	StatementStatusPaid     = 1
-	StatementStatusPaidLate = 2
+	StatementStatusOverdue   = -1
+	StatementStatusCreated   = 0
+	StatementStatusPaid      = 1
+	StatementStatusPaidLate  = 2
+	StatementStatusPublished = 3
 )
 
 var (
 	StatementStatus = map[int]string{
-		StatementStatusOverdue:  "Overdue",
-		StatementStatusUnpaid:   "Unpaid",
-		StatementStatusPaid:     "Paid",
-		StatementStatusPaidLate: "Paid Late",
+		StatementStatusOverdue:   "Overdue",
+		StatementStatusCreated:   "Created",
+		StatementStatusPaid:      "Paid",
+		StatementStatusPaidLate:  "Paid Late",
+		StatementStatusPublished: "Unpaid",
 	}
 )
 
@@ -54,6 +56,13 @@ type OverdueCandidate struct {
 	StatementID int64
 	LoanID      int64
 	BorrowerID  int64
+}
+
+// PublishCandidate identifies a statement eligible to be published (made
+// visible and payable) because its cycle has begun.
+type PublishCandidate struct {
+	StatementID int64
+	LoanID      int64
 }
 
 // MakePaymentResponse confirms a payment applied to a loan's latest statement.

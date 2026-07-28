@@ -25,7 +25,7 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 			StatementID:       5,
 			InstallmentAmount: decimal.NewFromInt(110000),
 			CarryOverAmount:   decimal.NewFromInt(10000),
-			Status:            entity.StatementStatusUnpaid,
+			Status:            entity.StatementStatusPublished,
 		}, nil)
 		repo.On("UpdateStatementPaid", tx, int64(5), decimal.NewFromInt(120000), now).Return(nil)
 		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(6), true, nil)
@@ -60,7 +60,7 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 			StatementID:       5,
 			InstallmentAmount: decimal.NewFromInt(110000),
 			CarryOverAmount:   decimal.NewFromInt(10000),
-			Status:            entity.StatementStatusUnpaid,
+			Status:            entity.StatementStatusPublished,
 		}, nil)
 		repo.On("UpdateStatementPaid", tx, int64(5), decimal.NewFromInt(120000), now).Return(nil)
 		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(0), false, nil)
@@ -85,7 +85,7 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 
 		repo.On("BeginTx").Return(tx, nil)
 		repo.On("GetLatestStatementForUpdate", tx, loanID, now).Return(entity.StatementDB{
-			StatementID: 5, Status: entity.StatementStatusUnpaid,
+			StatementID: 5, Status: entity.StatementStatusPublished,
 		}, nil)
 		repo.On("UpdateStatementPaid", tx, int64(5), mock.Anything, now).Return(nil)
 		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(0), false, nil)
@@ -161,7 +161,7 @@ func TestBillingEngineUsecase_MakePayment(t *testing.T) {
 
 		repo.On("BeginTx").Return(tx, nil)
 		repo.On("GetLatestStatementForUpdate", tx, loanID, now).Return(entity.StatementDB{
-			StatementID: 5, Status: entity.StatementStatusUnpaid,
+			StatementID: 5, Status: entity.StatementStatusPublished,
 		}, nil)
 		repo.On("UpdateStatementPaid", tx, int64(5), mock.Anything, now).Return(nil)
 		repo.On("GetNextStatementForUpdate", tx, loanID, mock.Anything).Return(int64(6), true, nil)

@@ -17,7 +17,7 @@ func (uc *billingEngineUsecase) GetStatements(loanID int64, until time.Time, lim
 	statements := make([]entity.Statement, 0, len(statementsDB))
 	for _, s := range statementsDB {
 		var toPay decimal.Decimal
-		if s.Status != entity.StatementStatusPaid {
+		if s.Status == entity.StatementStatusPublished {
 			toPay = s.InstallmentAmount.Add(s.CarryOverAmount)
 		}
 		statements = append(statements, entity.Statement{
@@ -57,7 +57,7 @@ func (uc *billingEngineUsecase) GetLatestStatement(loanID int64, now time.Time) 
 	}
 
 	var toPay decimal.Decimal
-	if statement.Status != entity.StatementStatusPaid {
+	if statement.Status == entity.StatementStatusPublished {
 		toPay = statement.InstallmentAmount.Add(statement.CarryOverAmount)
 	}
 

@@ -50,7 +50,7 @@ func TestBillingEngineUsecase_MarkOverdue(t *testing.T) {
 		repo.On("GetStatementForUpdate", tx, c.StatementID).Return(entity.StatementDB{
 			StatementID: 10, LoanID: 1,
 			InstallmentAmount: decimal.NewFromInt(110000), CarryOverAmount: decimal.NewFromInt(0),
-			StatementDate: statementDate, Status: entity.StatementStatusUnpaid,
+			StatementDate: statementDate, Status: entity.StatementStatusPublished,
 		}, nil)
 		repo.On("MarkStatementOverdue", tx, c.StatementID, now).Return(nil)
 		repo.On("GetNextStatementForUpdate", tx, c.LoanID, statementDate).Return(int64(11), true, nil)
@@ -80,7 +80,7 @@ func TestBillingEngineUsecase_MarkOverdue(t *testing.T) {
 		repo.On("GetStatementForUpdate", tx, c.StatementID).Return(entity.StatementDB{
 			StatementID: 10, LoanID: 1,
 			InstallmentAmount: decimal.NewFromInt(50000), CarryOverAmount: decimal.NewFromInt(0),
-			StatementDate: statementDate, Status: entity.StatementStatusUnpaid,
+			StatementDate: statementDate, Status: entity.StatementStatusPublished,
 		}, nil)
 		repo.On("MarkStatementOverdue", tx, c.StatementID, now).Return(nil)
 		repo.On("GetNextStatementForUpdate", tx, c.LoanID, statementDate).Return(int64(0), false, nil)
@@ -142,7 +142,7 @@ func TestBillingEngineUsecase_MarkOverdue(t *testing.T) {
 		repo.On("GetStatementForUpdate", tx2, c2.StatementID).Return(entity.StatementDB{
 			StatementID: 20, LoanID: 3,
 			InstallmentAmount: decimal.NewFromInt(50000), CarryOverAmount: decimal.NewFromInt(0),
-			StatementDate: statementDate, Status: entity.StatementStatusUnpaid,
+			StatementDate: statementDate, Status: entity.StatementStatusPublished,
 		}, nil)
 		repo.On("MarkStatementOverdue", tx2, c2.StatementID, now).Return(nil)
 		repo.On("GetNextStatementForUpdate", tx2, c2.LoanID, statementDate).Return(int64(0), false, nil)

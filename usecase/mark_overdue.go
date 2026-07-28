@@ -54,7 +54,7 @@ func (uc *billingEngineUsecase) markStatementOverdue(c entity.OverdueCandidate, 
 		return false, rollback(tx, err)
 	}
 
-	if statement.Status != entity.StatementStatusUnpaid {
+	if statement.Status != entity.StatementStatusPublished {
 		// already resolved (paid, or already marked overdue by a previous run) since it was listed
 		if err := tx.Rollback(); err != nil {
 			return false, fmt.Errorf("rollback: %w", err)

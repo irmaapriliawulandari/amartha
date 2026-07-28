@@ -27,7 +27,10 @@ func main() {
 	c := cron.New()
 
 	handler := handlercron.NewCronHandler(billingEngineUsecase)
-	if _, err := c.AddFunc("0 1 * * *", handler.MarkOverdue); err != nil {
+	if _, err := c.AddFunc("0 12 * * *", handler.PublishStatement); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := c.AddFunc("10 0 0 * *", handler.MarkOverdue); err != nil {
 		log.Fatal(err)
 	}
 

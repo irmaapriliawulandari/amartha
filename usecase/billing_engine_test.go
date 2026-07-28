@@ -161,6 +161,20 @@ func (m *mockRepo) InsertDelinquencyHistTx(tx txrepo.Tx, dh entity.DelinquencyHi
 	return args.Error(0)
 }
 
+func (m *mockRepo) ListPublishableCandidates(statementDate time.Time) ([]entity.PublishCandidate, error) {
+	args := m.Called(statementDate)
+	var res []entity.PublishCandidate
+	if args.Get(0) != nil {
+		res = args.Get(0).([]entity.PublishCandidate)
+	}
+	return res, args.Error(1)
+}
+
+func (m *mockRepo) MarkStatementPublished(tx txrepo.Tx, statementID int64, now time.Time) error {
+	args := m.Called(tx, statementID, now)
+	return args.Error(0)
+}
+
 func TestBillingEngineUsecase_GetStatements(t *testing.T) {
 	loanID := int64(1)
 	until := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
@@ -172,7 +186,7 @@ func TestBillingEngineUsecase_GetStatements(t *testing.T) {
 			{
 				LoanID: loanID, StatementDate: time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC),
 				InstallmentAmount: decimal.NewFromInt(100000), CarryOverAmount: decimal.Zero, PaidAmount: decimal.Zero,
-				Status: entity.StatementStatusUnpaid,
+				Status: entity.StatementStatusPublished,
 			},
 			{
 				LoanID: loanID, StatementDate: time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC),
@@ -193,7 +207,7 @@ func TestBillingEngineUsecase_GetStatements(t *testing.T) {
 		assert.Equal(t, []entity.Statement{
 			{LoanID: loanID, StatementDate: "2026-07-25", ToPayAmount: decimal.NewFromInt(100000), Status: "Unpaid"},
 			{LoanID: loanID, StatementDate: "2026-07-18", ToPayAmount: decimal.Decimal{}, Status: "Paid"},
-			{LoanID: loanID, StatementDate: "2026-07-11", ToPayAmount: decimal.NewFromInt(100000), Status: "Overdue"},
+			{LoanID: loanID, StatementDate: "2026-07-11", ToPayAmount: decimal.Decimal{}, Status: "Overdue"},
 		}, got)
 		repo.AssertExpectations(t)
 	})

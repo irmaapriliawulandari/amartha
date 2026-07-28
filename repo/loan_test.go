@@ -112,13 +112,13 @@ func TestLoanRepo_InsertLoanWithStatements(t *testing.T) {
 			LoanID: loan.LoanID, InstallmentAmount: decimal.NewFromInt(2750000),
 			StatementDate: time.Date(2026, 8, 4, 0, 0, 0, 0, time.UTC),
 			Deadline:      time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC),
-			Status:        entity.StatementStatusUnpaid,
+			Status:        entity.StatementStatusCreated,
 		},
 		{
 			LoanID: loan.LoanID, InstallmentAmount: decimal.NewFromInt(2750000),
 			StatementDate: time.Date(2026, 8, 11, 0, 0, 0, 0, time.UTC),
 			Deadline:      time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC),
-			Status:        entity.StatementStatusUnpaid,
+			Status:        entity.StatementStatusCreated,
 		},
 	}
 

@@ -7,6 +7,7 @@ import (
 
 type usecases interface {
 	MarkOverdue(now time.Time) (int, error)
+	PublishStatement(now time.Time) (int, error)
 }
 
 type cronHandler struct {

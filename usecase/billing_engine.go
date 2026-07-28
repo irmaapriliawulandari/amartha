@@ -4,6 +4,8 @@ import (
 	"amartha-test/entity"
 	"fmt"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 func (uc *billingEngineUsecase) GetStatements(loanID int64, until time.Time, limit, offset int) ([]entity.Statement, error) {
@@ -14,7 +16,10 @@ func (uc *billingEngineUsecase) GetStatements(loanID int64, until time.Time, lim
 
 	statements := make([]entity.Statement, 0, len(statementsDB))
 	for _, s := range statementsDB {
-		toPay := s.InstallmentAmount.Add(s.CarryOverAmount)
+		var toPay decimal.Decimal
+		if s.Status != entity.StatementStatusPaid {
+			toPay = s.InstallmentAmount.Add(s.CarryOverAmount)
+		}
 		statements = append(statements, entity.Statement{
 			LoanID:        s.LoanID,
 			StatementDate: s.StatementDate.Format("2006-01-02"),
@@ -51,12 +56,17 @@ func (uc *billingEngineUsecase) GetLatestStatement(loanID int64, now time.Time) 
 		return entity.LatestStatement{}, fmt.Errorf("check is delinquent: %w", err)
 	}
 
+	var toPay decimal.Decimal
+	if statement.Status != entity.StatementStatusPaid {
+		toPay = statement.InstallmentAmount.Add(statement.CarryOverAmount)
+	}
+
 	return entity.LatestStatement{
 		LoanID:            loanID,
 		StatementDate:     statement.StatementDate.Format("2006-01-02"),
 		CarryOverAmount:   statement.CarryOverAmount,
 		InstallmentAmount: statement.InstallmentAmount,
-		TotalToPay:        statement.InstallmentAmount.Add(statement.CarryOverAmount),
+		TotalToPay:        toPay,
 		Status:            entity.StatementStatus[statement.Status],
 		Deadline:          statement.Deadline.Format("2006-01-02"),
 		OutstandingAmount: outstanding,

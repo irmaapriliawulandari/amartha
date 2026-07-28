@@ -14,7 +14,7 @@ func (r *loanRepo) GetStatements(loanID int64, until time.Time, limit, offset in
 	const query = `
 		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, status
 		from statement
-		where loan_id = $1 and statement_date < $2
+		where loan_id = $1 and statement_date <= $2
 		order by statement_date desc
 		limit $3 offset $4
 	`
@@ -44,7 +44,7 @@ func (r *loanRepo) GetLatestStatement(loanID int64, before time.Time) (entity.St
 	const query = `
 		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, deadline, status
 		from statement
-		where loan_id = $1 and statement_date < $2
+		where loan_id = $1 and statement_date <= $2
 		order by statement_date desc
 		limit 1
 	`
@@ -75,7 +75,7 @@ func (r *loanRepo) GetLatestStatementForUpdate(tx Tx, loanID int64, before time.
 	const query = `
 		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, deadline, status
 		from statement
-		where loan_id = $1 and statement_date < $2
+		where loan_id = $1 and statement_date <= $2
 		order by statement_date desc
 		limit 1
 		for update

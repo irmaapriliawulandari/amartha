@@ -192,7 +192,7 @@ func TestBillingEngineUsecase_GetStatements(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, []entity.Statement{
 			{LoanID: loanID, StatementDate: "2026-07-25", ToPayAmount: decimal.NewFromInt(100000), Status: "Unpaid"},
-			{LoanID: loanID, StatementDate: "2026-07-18", ToPayAmount: decimal.NewFromInt(100000), Status: "Paid"},
+			{LoanID: loanID, StatementDate: "2026-07-18", ToPayAmount: decimal.Decimal{}, Status: "Paid"},
 			{LoanID: loanID, StatementDate: "2026-07-11", ToPayAmount: decimal.NewFromInt(100000), Status: "Overdue"},
 		}, got)
 		repo.AssertExpectations(t)
@@ -285,7 +285,7 @@ func TestBillingEngineUsecase_GetLatestStatement(t *testing.T) {
 			StatementDate:     "2026-08-18",
 			CarryOverAmount:   decimal.NewFromInt(10000),
 			InstallmentAmount: decimal.NewFromInt(110000),
-			TotalToPay:        decimal.NewFromInt(120000),
+			TotalToPay:        decimal.Decimal{},
 			Status:            "Paid",
 			Deadline:          "2026-08-24",
 			OutstandingAmount: decimal.NewFromInt(4500000),

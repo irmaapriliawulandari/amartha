@@ -113,6 +113,71 @@ func TestLoanRepo_GetStatements(t *testing.T) {
 	})
 }
 
+func TestLoanRepo_GetLatestStatement(t *testing.T) {
+	loanID := int64(1)
+	before := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
+
+	queryPattern := regexp.QuoteMeta("from statement")
+	columns := []string{"statement_id", "installment_amount", "carry_over_amount", "paid_amount", "statement_date", "deadline", "status"}
+
+	t.Run("success returns the latest statement regardless of status", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		rows := sqlmock.NewRows(columns).
+			AddRow(int64(5), "110000", "10000", "120000", time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), entity.StatementStatusPaid)
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(loanID, before).
+			WillReturnRows(rows)
+
+		r := &loanRepo{db: db}
+		got, err := r.GetLatestStatement(loanID, before)
+
+		require.NoError(t, err)
+		assert.Equal(t, entity.StatementDB{
+			StatementID: 5, LoanID: loanID,
+			InstallmentAmount: decimal.NewFromInt(110000), CarryOverAmount: decimal.NewFromInt(10000), PaidAmount: decimal.NewFromInt(120000),
+			StatementDate: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), Deadline: time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC),
+			Status: entity.StatementStatusPaid,
+		}, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("no statement before the reference date returns ErrStatementNotFound", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(loanID, before).
+			WillReturnRows(sqlmock.NewRows(columns))
+
+		r := &loanRepo{db: db}
+		_, err = r.GetLatestStatement(loanID, before)
+
+		assert.ErrorIs(t, err, entity.ErrStatementNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error is returned", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(queryPattern).
+			WithArgs(loanID, before).
+			WillReturnError(errors.New("connection refused"))
+
+		r := &loanRepo{db: db}
+		_, err = r.GetLatestStatement(loanID, before)
+
+		assert.ErrorContains(t, err, "connection refused")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestLoanRepo_InsertStatement(t *testing.T) {
 	statement := entity.StatementDB{
 		LoanID:            1,

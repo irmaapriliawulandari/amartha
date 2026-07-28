@@ -38,6 +38,29 @@ func (r *loanRepo) GetStatements(loanID int64, until time.Time, limit, offset in
 	return statements, nil
 }
 
+func (r *loanRepo) GetLatestStatement(loanID int64, before time.Time) (entity.StatementDB, error) {
+	const query = `
+		select statement_id, installment_amount, carry_over_amount, paid_amount, statement_date, deadline, status
+		from statement
+		where loan_id = $1 and statement_date < $2
+		order by statement_date desc
+		limit 1
+	`
+
+	s := entity.StatementDB{LoanID: loanID}
+	err := r.db.QueryRow(query, loanID, before).Scan(
+		&s.StatementID, &s.InstallmentAmount, &s.CarryOverAmount, &s.PaidAmount, &s.StatementDate, &s.Deadline, &s.Status,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return entity.StatementDB{}, entity.ErrStatementNotFound
+		}
+		return entity.StatementDB{}, fmt.Errorf("query latest statement: %w", err)
+	}
+
+	return s, nil
+}
+
 func insertStatement(q queryRower, statement entity.StatementDB) (int64, error) {
 	const query = `
 		insert into statement (

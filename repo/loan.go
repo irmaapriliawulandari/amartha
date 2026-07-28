@@ -3,7 +3,10 @@ package repo
 import (
 	"amartha-test/entity"
 	"database/sql"
+	"errors"
 	"fmt"
+
+	"github.com/shopspring/decimal"
 )
 
 func insertLoan(exec execer, loan entity.LoanDB) error {
@@ -70,6 +73,27 @@ func (r *loanRepo) InsertLoanWithStatements(loan entity.LoanDB, statements []ent
 	}
 
 	return nil
+}
+
+func (r *loanRepo) GetOutstandingAmount(loanID int64) (decimal.Decimal, error) {
+	const query = `
+		select l.total_amount - coalesce(sum(s.paid_amount), 0)
+		from loan l
+		left join statement s on s.loan_id = l.loan_id
+		where l.loan_id = $1
+		group by l.loan_id, l.total_amount
+	`
+
+	var outstanding decimal.Decimal
+	err := r.db.QueryRow(query, loanID).Scan(&outstanding)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return decimal.Decimal{}, entity.ErrLoanNotFound
+		}
+		return decimal.Decimal{}, fmt.Errorf("query outstanding amount: %w", err)
+	}
+
+	return outstanding, nil
 }
 
 func rollback(tx *sql.Tx, cause error) error {

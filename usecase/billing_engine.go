@@ -25,3 +25,35 @@ func (uc *billingEngineUsecase) GetStatements(loanID int64, until time.Time, lim
 
 	return statements, nil
 }
+
+func (uc *billingEngineUsecase) GetOutstandingAmount(loanID int64) (entity.OutstandingAmount, error) {
+	outstanding, err := uc.repo.GetOutstandingAmount(loanID)
+	if err != nil {
+		return entity.OutstandingAmount{}, fmt.Errorf("get outstanding amount: %w", err)
+	}
+
+	return entity.OutstandingAmount{LoanID: loanID, OutstandingAmount: outstanding}, nil
+}
+
+func (uc *billingEngineUsecase) GetLatestStatement(loanID int64, now time.Time) (entity.LatestStatement, error) {
+	statement, err := uc.repo.GetLatestStatement(loanID, now)
+	if err != nil {
+		return entity.LatestStatement{}, fmt.Errorf("get latest statement: %w", err)
+	}
+
+	outstanding, err := uc.repo.GetOutstandingAmount(loanID)
+	if err != nil {
+		return entity.LatestStatement{}, fmt.Errorf("get outstanding amount: %w", err)
+	}
+
+	return entity.LatestStatement{
+		LoanID:            loanID,
+		StatementDate:     statement.StatementDate.Format("2006-01-02"),
+		CarryOverAmount:   statement.CarryOverAmount,
+		InstallmentAmount: statement.InstallmentAmount,
+		TotalToPay:        statement.InstallmentAmount.Add(statement.CarryOverAmount),
+		Status:            entity.StatementStatus[statement.Status],
+		Deadline:          statement.Deadline.Format("2006-01-02"),
+		OutstandingAmount: outstanding,
+	}, nil
+}

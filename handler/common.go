@@ -29,6 +29,8 @@ func RegisterRoutes(mux *http.ServeMux, h *httpHandler) {
 	mux.HandleFunc("/publish", auth.AuthMiddleware(h.Publish))
 
 	mux.HandleFunc("/billing-engine/get-statements", auth.AuthMiddleware(h.GetStatements))
+	mux.HandleFunc("/billing-engine/get-outstanding", auth.AuthMiddleware(h.GetOutstandingAmount))
+	mux.HandleFunc("/billing-engine/get-latest-statement", auth.AuthMiddleware(h.GetLatestStatement))
 }
 
 // Ping check service healthy

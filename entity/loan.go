@@ -2,6 +2,7 @@ package entity
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,6 +19,15 @@ const (
 	LoanStatusActive = 1
 	LoanStatusClosed = 2
 )
+
+var ErrLoanNotFound = errors.New("loan not found")
+
+// OutstandingAmount is loan.total_amount minus everything paid so far across
+// all of its statements.
+type OutstandingAmount struct {
+	LoanID            int64           `json:"loan_id"`
+	OutstandingAmount decimal.Decimal `json:"outstanding_amount"`
+}
 
 type DisburseLoanMsg struct {
 	LoanID           int64           `json:"loan_id"`

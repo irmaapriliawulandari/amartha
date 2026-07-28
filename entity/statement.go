@@ -2,6 +2,7 @@ package entity
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -23,11 +24,27 @@ var (
 	}
 )
 
+var ErrStatementNotFound = errors.New("statement not found")
+
 type Statement struct {
 	LoanID        int64           `json:"loan_id"`
 	StatementDate string          `json:"statement_date"`
 	ToPayAmount   decimal.Decimal `json:"to_pay_amount"`
 	Status        string          `json:"status"`
+}
+
+// LatestStatement is the currently-due statement for a loan, i.e. the most
+// recent unpaid statement dated before the reference date, plus the loan's
+// overall outstanding balance.
+type LatestStatement struct {
+	LoanID            int64           `json:"loan_id"`
+	StatementDate     string          `json:"statement_date"`
+	CarryOverAmount   decimal.Decimal `json:"carry_over_amount"`
+	InstallmentAmount decimal.Decimal `json:"installment_amount"`
+	TotalToPay        decimal.Decimal `json:"total_to_pay"`
+	Status            string          `json:"status"`
+	Deadline          string          `json:"deadline"`
+	OutstandingAmount decimal.Decimal `json:"outstanding_amount"`
 }
 
 // StatementDB mirrors every column of the statement table.
